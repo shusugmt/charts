@@ -13,7 +13,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 service:
-  type: ClusterIP
+  type: NodePort
   port: 80
 
 ingress:
@@ -46,3 +46,21 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+postgresql:
+  # Enable to deploy the PostgreSQL chart
+  enabled: true
+  # To use an external PostgreSQL instance, set enabled to false and uncomment
+  # the line below:
+  # postgresServer: ""
+  # To use an external secret for the password for an external PostgreSQL
+  # instance, set enabled to false and provide the name of the secret on the
+  # line below:
+  # postgresPasswordSecret: ""
+  postgresqlUsername: netbox
+  #postgresqlPassword: supersecretpassword
+  postgresqlDatabase: netbox
+
+redis:
+  enabled: true
+  #password: supersecretpassword

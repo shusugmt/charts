@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netbox.fullname" . }}-rqworker
+  labels:
+    app.kubernetes.io/name: {{ include "netbox.name" . }}-rqworker
+    helm.sh/chart: {{ include "netbox.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "netbox.name" . }}-rqworker
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "netbox.name" . }}-rqworker
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: rqworker
+        image: netboxcommunity/netbox:latest
+        command: ["python3", "/opt/netbox/netbox/manage.py", "rqworker"]
+        env:
+        - name: WEBHOOKS_ENABLED
+          value: "true"
+        - name: REDIS_HOST
+          value: {{ include "netbox.redis.fullname" . }}-master
+
+        volumeMounts:
+        - name: netbox-secrets
+          mountPath: /run/secrets/secret_key
+          subPath: SECRET_KEY
+        - name: netbox-redis-secrets
+          mountPath: /run/secrets/redis_password
+          subPath: redis-password
+
+      volumes:
+      - name: netbox-secrets
+        secret:
+          secretName: {{ include "netbox.fullname" . }}
+      - name: netbox-redis-secrets
+        secret:
+          secretName: {{ include "netbox.redis.fullname" . }}

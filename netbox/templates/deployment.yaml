@@ -19,33 +19,77 @@ spec:
         app.kubernetes.io/name: {{ include "netbox.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      hostAliases:
+      - ip: 127.0.0.1
+        hostnames:
+        - netbox
+
       containers:
-        - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: 80
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-    {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-    {{- end }}
-    {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-    {{- end }}
+      - name: netbox
+        image: netboxcommunity/netbox:latest
+        env:
+
+        - name: DB_HOST
+          value: {{ include "netbox.postgresql.fullname" . }}
+        - name: DB_USER
+          value: {{ .Values.postgresql.postgresqlUsername }}
+        - name: DB_NAME
+          value: {{ .Values.postgresql.postgresqlDatabase }}
+        
+        - name: WEBHOOKS_ENABLED
+          value: "true"
+
+        - name: REDIS_HOST
+          value: {{ include "netbox.redis.fullname" . }}-master
+
+        volumeMounts:
+
+        - name: netbox-secrets
+          mountPath: /run/secrets/secret_key
+          subPath: SECRET_KEY
+        - name: netbox-secrets
+          mountPath: /run/secrets/superuser_password
+          subPath: SUPERUSER_PASSWORD
+
+        - name: netbox-postgresql-secrets
+          mountPath: /run/secrets/db_password
+          subPath: postgresql-password
+        
+        - name: netbox-redis-secrets
+          mountPath: /run/secrets/redis_password
+          subPath: redis-password
+
+        - name: netbox-static-files
+          mountPath: /opt/netbox/netbox/static
+      
+      - name: nginx
+        image: nginx:1.15-alpine
+        command: ["nginx", "-c", "/etc/netbox-nginx/nginx.conf"]
+        volumeMounts:
+        - name: netbox-static-files
+          mountPath: /opt/netbox/netbox/static
+        - name: netbox-nginx-config
+          mountPath: /etc/netbox-nginx
+      
+      initContainers:
+      - name: init-netbox-nginx-config
+        image: netboxcommunity/netbox:latest
+        command: ["cp", "/etc/netbox-nginx/nginx.conf", "/mnt/etc/netbox-nginx/nginx.conf"]
+        volumeMounts:
+        - name: netbox-nginx-config
+          mountPath: /mnt/etc/netbox-nginx
+      
+      volumes:
+      - name: netbox-secrets
+        secret:
+          secretName: {{ include "netbox.fullname" . }}
+      - name: netbox-postgresql-secrets
+        secret:
+          secretName: {{ include "netbox.postgresql.fullname" . }}
+      - name: netbox-redis-secrets
+        secret:
+          secretName: {{ include "netbox.redis.fullname" . }}
+      - name: netbox-nginx-config
+        emptyDir: {}
+      - name: netbox-static-files
+        emptyDir: {}
